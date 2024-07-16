@@ -1,6 +1,6 @@
 # Alpha HTTP
 
-*This project is powered by* [cthing](https://github.com/edilson258/cthings)
+*This project is powered by* [cthings](https://github.com/edilson258/cthings)
 
 Build fast and reliable HTTP server in C
 
