@@ -10,6 +10,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "../external/cthings/include/cthings.h"
 #include "../include/alpha.h"
 #include "../include/templates.h"
 
@@ -32,7 +33,10 @@ void send_error(int *client_fd, char *reason);
 HttpMethod fextract_request_method(FILE **fp);
 int init_tcp_socket(char *Host, _usize Port, _usize BackLog);
 Route *match_route(Router *r, char *path, HttpMethod method);
-void handle_request_get(requestDTO *payload, FILE **client_fp);
+void handle_request_get(requestDTO *payload, FILE **client_fp, char *path);
+char *join_strings(char *lhs, char *rhs);
+void handle_response(int *client_fd, Response res);
+void handle_response_with_file(int *client_fd, Response res);
 
 Router Alpha_Router_New() {
   Router router;
@@ -76,7 +80,7 @@ void Alpha_Run(AlphaApp app) {
     // inet_ntoa(client_addr.sin_addr),ntohs(client_addr.sin_port));
 
     if (client_fd == -1) {
-      fprintf(stderr, "[ERROR]: Couldn't Accept conn: %s\n", strerror(errno));
+      Log(stderr, ERROR, "Couldn't Accept conn: %s\n", strerror(errno));
       continue;
     }
 
@@ -104,7 +108,7 @@ void *request_handler_bridge(void *arg) {
 void handle_request(requestDTO *payload) {
   FILE *client_fp = fdopen(payload->client.m_Fd, "r");
   if (!client_fp) {
-    fprintf(stderr, "[ERROR]: Couldn't open client fd: %s\n", strerror(errno));
+    Log(stderr, ERROR, "Couldn't open client fd: %s\n", strerror(errno));
     send_error(&payload->client.m_Fd, "Internal Server Error");
     goto difer;
   }
@@ -113,34 +117,54 @@ void handle_request(requestDTO *payload) {
     send_error(&payload->client.m_Fd, "Unexpected Http Method");
     goto difer;
   }
+  char *path = fchop_while(&client_fp, ' ');
   switch (method) {
   case GET:
-    handle_request_get(payload, &client_fp);
+    handle_request_get(payload, &client_fp, path);
     break;
   case POST:
     send_error(&payload->client.m_Fd, "POST requests are not supported yet");
     break;
   }
+  free(path);
 difer:
   fclose(client_fp);
   close(payload->client.m_Fd);
 }
 
-char *join_strings(char *lhs, char *rhs) {
-  _usize lhs_len = strlen(lhs);
-  _usize rhs_len = strlen(rhs);
-  char *buf = malloc(sizeof(char) * (lhs_len + rhs_len + 1));
-  strncpy(buf, lhs, lhs_len);
-  strncpy(buf + lhs_len, rhs, rhs_len);
-  return buf;
+void handle_request_get(requestDTO *payload, FILE **client_fp, char *path) {
+  const Route *r = match_route(&payload->app->m_Router, path, GET);
+  if (!r) {
+    send_error(&payload->client.m_Fd, "404 path not found");
+    Log(stdout, INFO, "GET %s %s", path, STATUS_CODE(NotFound));
+    return;
+  }
+  const Request req = {
+      .m_Method = GET,
+      .m_Path = path,
+  };
+  const Response res = r->m_Handler(req);
+  handle_response(&payload->client.m_Fd, res);
+  Log(stdout, INFO, "GET %s %s", path, STATUS_CODE(res.m_Status));
+}
+
+void handle_response(int *client_fd, Response res) {
+  switch (res.m_Type) {
+  case STR:
+    send_ok(client_fd, res);
+    break;
+  case FILE_:
+    handle_response_with_file(client_fd, res);
+    break;
+  }
 }
 
 void handle_response_with_file(int *client_fd, Response res) {
   FILE *file =
       fopen(join_strings(STATIC_FOLDER_PATH, res.payload.m_FilePath), "r");
   if (!file) {
-    fprintf(stderr, "[ERROR]: Couldn't respond with file %s: %s",
-            res.payload.m_FilePath, strerror(errno));
+    Log(stderr, ERROR, "Couldn't respond with file %s: %s",
+        res.payload.m_FilePath, strerror(errno));
     send_error(client_fd, "Internal Server ERROR");
     return;
   }
@@ -157,8 +181,8 @@ void handle_response_with_file(int *client_fd, Response res) {
   while (1) {
     read_len = fread(chunck, sizeof(char), chunck_len, file);
     if (read_len < 0) {
-      fprintf(stderr, "[ERROR]: Couldn't read chunck from specified file %s\n",
-              strerror(errno));
+      Log(stderr, ERROR, "Couldn't read chunck from specified file %s\n",
+          strerror(errno));
       send_error(client_fd, "Internal Server ERROR");
       fclose(file);
       return;
@@ -169,33 +193,6 @@ void handle_response_with_file(int *client_fd, Response res) {
     }
   }
   fclose(file);
-}
-
-void handle_response(int *client_fd, Response res) {
-  switch (res.m_Type) {
-  case STR:
-    send_ok(client_fd, res);
-    break;
-  case FILE_:
-    handle_response_with_file(client_fd, res);
-    break;
-  }
-}
-
-void handle_request_get(requestDTO *payload, FILE **client_fp) {
-  char *path = fchop_while(client_fp, ' ');
-  const Route *r = match_route(&payload->app->m_Router, path, GET);
-  if (!r) {
-    send_error(&payload->client.m_Fd, "404 path not found");
-    return;
-  }
-  const Request req = {
-      .m_Method = GET,
-      .m_Path = path,
-  };
-  const Response res = r->m_Handler(req);
-  handle_response(&payload->client.m_Fd, res);
-  free(path);
 }
 
 Route *match_route(Router *router, char *path, HttpMethod method) {
@@ -259,13 +256,12 @@ void send_error(int *client_fd, char *error_msg) {
 int init_tcp_socket(char *Host, _usize Port, _usize BackLog) {
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd == -1) {
-    fprintf(stderr, "[ERROR]: Couldn't create server: %s\n", strerror(errno));
+    Log(stderr, ERROR, "Couldn't create server: %s\n", strerror(errno));
     return -1;
   }
   if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &(int){1},
                  sizeof(int)) == -1) {
-    fprintf(stderr, "[ERROR]: Couldn't set to reuse Addr: %s\n",
-            strerror(errno));
+    Log(stderr, ERROR, "Couldn't set to reuse Addr: %s\n", strerror(errno));
     return -1;
   }
   struct sockaddr_in saddr;
@@ -274,12 +270,21 @@ int init_tcp_socket(char *Host, _usize Port, _usize BackLog) {
   saddr.sin_addr.s_addr = inet_addr(Host);
   socklen_t saddr_len = sizeof(saddr);
   if (bind(fd, (struct sockaddr *)&saddr, saddr_len) == -1) {
-    fprintf(stderr, "[ERROR]: Couldn't Bind: %s\n", strerror(errno));
+    Log(stderr, ERROR, "Couldn't Bind: %s\n", strerror(errno));
     return -1;
   }
   if (listen(fd, BackLog) == -1) {
-    fprintf(stderr, "[ERROR]: Couldn't Listen: %s\n", strerror(errno));
+    Log(stderr, ERROR, "Couldn't Listen: %s\n", strerror(errno));
     return -1;
   }
   return fd;
+}
+
+char *join_strings(char *lhs, char *rhs) {
+  _usize lhs_len = strlen(lhs);
+  _usize rhs_len = strlen(rhs);
+  char *buf = malloc(sizeof(char) * (lhs_len + rhs_len + 1));
+  strncpy(buf, lhs, lhs_len);
+  strncpy(buf + lhs_len, rhs, rhs_len);
+  return buf;
 }

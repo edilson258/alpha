@@ -9,4 +9,8 @@ project(
 file(GLOB Alpha_Sources "src/*.c")
 add_library(alphahttp STATIC ${Alpha_Sources})
 
+# Link with cthings framework
+target_link_libraries(
+  alphahttp PRIVATE ${CMAKE_SOURCE_DIR}/external/cthings/lib/libcthings.a)
+
 add_subdirectory(examples)
