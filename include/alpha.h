@@ -9,6 +9,8 @@ typedef enum { GET = 1, POST = 2 } HttpMethod;
 typedef enum { OK = 1, NotFound = 2 } StatusCode;
 typedef enum { STR = 1, FILE_ = 2 } ResponseType;
 
+#define STATIC_FOLDER_PATH "static/"
+
 typedef struct __Request__ {
   const char *m_Path;
   HttpMethod m_Method;
@@ -57,6 +59,14 @@ void Alpha_Get(AlphaApp app, char *Path, AlphaRouteHandler Handler);
       .m_Type = STR,                                                           \
       .m_Status = OK,                                                          \
       .payload = {.m_String = str},                                            \
+  };                                                                           \
+  return res
+
+#define RESPOND_WITH_FILE(file_path)                                           \
+  Response res = {                                                             \
+      .m_Type = FILE_,                                                         \
+      .m_Status = OK,                                                          \
+      .payload = {.m_FilePath = file_path},                                    \
   };                                                                           \
   return res
 
