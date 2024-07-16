@@ -126,6 +126,62 @@ difer:
   close(payload->client.m_Fd);
 }
 
+char *join_strings(char *lhs, char *rhs) {
+  _usize lhs_len = strlen(lhs);
+  _usize rhs_len = strlen(rhs);
+  char *buf = malloc(sizeof(char) * (lhs_len + rhs_len + 1));
+  strncpy(buf, lhs, lhs_len);
+  strncpy(buf + lhs_len, rhs, rhs_len);
+  return buf;
+}
+
+void handle_response_with_file(int *client_fd, Response res) {
+  FILE *file =
+      fopen(join_strings(STATIC_FOLDER_PATH, res.payload.m_FilePath), "r");
+  if (!file) {
+    fprintf(stderr, "[ERROR]: Couldn't respond with file %s: %s",
+            res.payload.m_FilePath, strerror(errno));
+    send_error(client_fd, "Internal Server ERROR");
+    return;
+  }
+  fseek(file, 0, SEEK_END);
+  _usize file_len = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, 200, file_len);
+
+  // read and write in chuncks
+  _usize chunck_len = 512;
+  char chunck[chunck_len];
+  _usize read_len = 0;
+
+  while (1) {
+    read_len = fread(chunck, sizeof(char), chunck_len, file);
+    if (read_len < 0) {
+      fprintf(stderr, "[ERROR]: Couldn't read chunck from specified file %s\n",
+              strerror(errno));
+      send_error(client_fd, "Internal Server ERROR");
+      fclose(file);
+      return;
+    }
+    dprintf(*client_fd, "%s", chunck);
+    if (read_len < chunck_len) {
+      break;
+    }
+  }
+  fclose(file);
+}
+
+void handle_response(int *client_fd, Response res) {
+  switch (res.m_Type) {
+  case STR:
+    send_ok(client_fd, res);
+    break;
+  case FILE_:
+    handle_response_with_file(client_fd, res);
+    break;
+  }
+}
+
 void handle_request_get(requestDTO *payload, FILE **client_fp) {
   char *path = fchop_while(client_fp, ' ');
   const Route *r = match_route(&payload->app->m_Router, path, GET);
@@ -138,7 +194,7 @@ void handle_request_get(requestDTO *payload, FILE **client_fp) {
       .m_Path = path,
   };
   const Response res = r->m_Handler(req);
-  send_ok(&payload->client.m_Fd, res);
+  handle_response(&payload->client.m_Fd, res);
   free(path);
 }
 

@@ -20,17 +20,8 @@ Response home(Request req) {
 }
 
 Response products(Request req) {
-  static char *text = "<h1>Products page</h1>"
-                      "<ol>"
-                      "<li>Apples</li>"
-                      "<li>Oranges</li>"
-                      "<li>Mangos</li>"
-                      "</ol>"
-                      "<br/>"
-                      "<a href=\"/\">Back home</a>";
-
-  // Using a macro helper to respond
-  RESPOND_WITH_STR(text);
+  // "index.html" must be under static folder
+  RESPOND_WITH_FILE("products.html");
 }
 
 int main() {
