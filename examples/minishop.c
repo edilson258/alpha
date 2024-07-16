@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "../include/alpha.h"
 
 #define Host "0.0.0.0" /* match any addr */
@@ -7,8 +5,6 @@
 #define BackLog 1024
 
 Response home(Request req) {
-  printf("Oh! New request for home page\n");
-
   static char *text =
       "<h1>Welcome to the home page</h1>"
       "<h3>This is a humble eCommerce</h3><br/>"

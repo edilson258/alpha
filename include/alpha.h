@@ -6,7 +6,7 @@
 typedef unsigned long _usize;
 
 typedef enum { GET = 1, POST = 2 } HttpMethod;
-typedef enum { OK = 1, NotFound = 2 } StatusCode;
+typedef enum { OK = 200, NotFound = 404 } StatusCode;
 typedef enum { STR = 1, FILE_ = 2 } ResponseType;
 
 #define STATIC_FOLDER_PATH "static/"
@@ -69,5 +69,10 @@ void Alpha_Get(AlphaApp app, char *Path, AlphaRouteHandler Handler);
       .payload = {.m_FilePath = file_path},                                    \
   };                                                                           \
   return res
+
+#define STATUS_CODE(code)                                                      \
+  ((code) == 200   ? "\033[0;32m200\033[0m"                                    \
+   : (code) == 404 ? "\033[0;33m404\033[0m"                                    \
+                   : "Unknown Status Code")
 
 #endif
