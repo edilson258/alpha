@@ -3,7 +3,7 @@
 
 #define HTTP_HEADER_TEMPLATE                                                   \
   "HTTP/1.1 %d\r\n"                                                            \
-  "Content-Type: text/html\r\n"                                                \
+  "Content-Type: %s\r\n"                                                       \
   "Content-Length: %lu\r\n"                                                    \
   "\r\n"
 

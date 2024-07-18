@@ -1,13 +1,17 @@
 #ifndef ALPHA_HTTP
 #define ALPHA_HTTP
 
-#define ROUTER_INIT_CAP 512
+#ifdef ALPHA_IMPLEMENTATION
+#define JACK_IMPLEMENTATION
+#endif
+#include "../external/jack/include/jack.h"
 
-typedef unsigned long _usize;
+#define ROUTER_INIT_CAP 512
+typedef unsigned long usize;
 
 typedef enum { GET = 1, POST = 2 } HttpMethod;
 typedef enum { OK = 200, NotFound = 404 } StatusCode;
-typedef enum { STR = 1, FILE_ = 2 } ResponseType;
+typedef enum { STR = 1, FILE_ = 2, JSON = 3 } ResponseType;
 
 #define STATIC_FOLDER_PATH "static/"
 
@@ -19,6 +23,7 @@ typedef struct __Request__ {
 typedef union {
   char *m_String;
   char *m_FilePath;
+  Json m_Json;
 } ResponseData;
 
 typedef struct __Response__ {
@@ -36,15 +41,15 @@ typedef struct {
 } Route;
 
 typedef struct {
-  _usize m_Capacity;
-  _usize m_RoutesCount;
+  usize m_Capacity;
+  usize m_RoutesCount;
   Route m_Routes[ROUTER_INIT_CAP];
 } Router;
 
 typedef struct __Alpha__ {
   int m_Fd;
-  _usize m_Port;
-  _usize m_BackLog;
+  usize m_Port;
+  usize m_BackLog;
   Router m_Router;
 } __Alpha__;
 

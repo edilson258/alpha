@@ -1,3 +1,4 @@
+#define ALPHA_IMPLEMENTATION
 #include "../include/alpha.h"
 
 #define Host "0.0.0.0" /* match any addr */
@@ -16,8 +17,51 @@ Response home(Request req) {
 }
 
 Response products(Request req) {
-  // "index.html" must be under static folder
-  RESPOND_WITH_FILE("products.html");
+  char *products =
+      "{"
+      "\"products\": ["
+      "{"
+      "\"id\": 1,"
+      "\"name\": \"Laptop\","
+      "\"price\": 999,"
+      "\"description\": \"Powerful laptop for all your computing needs.\","
+      "\"category\": \"Computers\""
+      "},"
+      "{"
+      "\"id\": 2,"
+      "\"name\": \"Wireless Mouse\","
+      "\"price\": 29,"
+      "\"description\": \"Ergonomic mouse with wireless connectivity.\","
+      "\"category\": \"Peripherals\""
+      "},"
+      "{"
+      "\"id\": 3,"
+      "\"name\": \"External SSD Drive\","
+      "\"price\": 149,"
+      "\"description\": \"High-speed external SSD storage for data backup.\","
+      "\"category\": \"Storage\""
+      "},"
+      "{"
+      "\"id\": 4,"
+      "\"name\": \"Bluetooth Headphones\","
+      "\"price\": 79,"
+      "\"description\": \"Wireless headphones with noise-cancelling "
+      "features.\","
+      "\"category\": \"Audio\""
+      "},"
+      "{"
+      "\"id\": 5,"
+      "\"name\": \"Smartphone\","
+      "\"price\": 699,"
+      "\"description\": \"Feature-rich smartphone with advanced camera "
+      "capabilities.\","
+      "\"category\": \"Mobile Devices\""
+      "}"
+      "]}";
+
+  Json json = Json_Parse(products);
+  Response res = {.m_Status = 200, .m_Type = JSON, .payload.m_Json = json};
+  return res;
 }
 
 int main() {

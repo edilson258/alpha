@@ -27,16 +27,17 @@ typedef struct {
 char *fread_line(FILE **fp);
 void *request_handler_bridge(void *arg);
 void handle_request(requestDTO *payload);
-void send_ok(int *client_fd, Response res);
 char *fchop_while(FILE **fp, char stop_char);
 void send_error(int *client_fd, char *reason);
 HttpMethod fextract_request_method(FILE **fp);
-int init_tcp_socket(char *Host, _usize Port, _usize BackLog);
+int init_tcp_socket(char *Host, usize Port, usize BackLog);
 Route *match_route(Router *r, char *path, HttpMethod method);
 void handle_request_get(requestDTO *payload, FILE **client_fp, char *path);
 char *join_strings(char *lhs, char *rhs);
 void handle_response(int *client_fd, Response res);
-void handle_response_with_file(int *client_fd, Response res);
+void handle_response_with_str(int *client_fd, Response res);
+void handle_response_with_html_file(int *client_fd, Response res);
+void handle_response_with_json(int *client_fd, Response res);
 
 Router Alpha_Router_New() {
   Router router;
@@ -45,7 +46,7 @@ Router Alpha_Router_New() {
   return router;
 }
 
-AlphaApp Alpha_New(char *Host, _usize Port, _usize BackLog) {
+AlphaApp Alpha_New(char *Host, usize Port, usize BackLog) {
   AlphaApp app = malloc(sizeof(__Alpha__));
   app->m_Router = Alpha_Router_New();
   app->m_BackLog = BackLog;
@@ -72,7 +73,7 @@ void Alpha_Run(AlphaApp app) {
 
   while (1) {
     struct sockaddr_in client_addr;
-    _usize client_addr_len = sizeof(client_addr);
+    usize client_addr_len = sizeof(client_addr);
     const int client_fd = accept(app->m_Fd, (struct sockaddr *)&client_addr,
                                  (socklen_t *)&client_addr_len);
 
@@ -151,52 +152,19 @@ void handle_request_get(requestDTO *payload, FILE **client_fp, char *path) {
 void handle_response(int *client_fd, Response res) {
   switch (res.m_Type) {
   case STR:
-    send_ok(client_fd, res);
+    handle_response_with_str(client_fd, res);
     break;
   case FILE_:
-    handle_response_with_file(client_fd, res);
+    handle_response_with_html_file(client_fd, res);
+    break;
+  case JSON:
+    handle_response_with_json(client_fd, res);
     break;
   }
-}
-
-void handle_response_with_file(int *client_fd, Response res) {
-  FILE *file =
-      fopen(join_strings(STATIC_FOLDER_PATH, res.payload.m_FilePath), "r");
-  if (!file) {
-    Log(stderr, ERROR, "Couldn't respond with file %s: %s",
-        res.payload.m_FilePath, strerror(errno));
-    send_error(client_fd, "Internal Server ERROR");
-    return;
-  }
-  fseek(file, 0, SEEK_END);
-  _usize file_len = ftell(file);
-  fseek(file, 0, SEEK_SET);
-  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, 200, file_len);
-
-  // read and write in chuncks
-  _usize chunck_len = 512;
-  char chunck[chunck_len];
-  _usize read_len = 0;
-
-  while (1) {
-    read_len = fread(chunck, sizeof(char), chunck_len, file);
-    if (read_len < 0) {
-      Log(stderr, ERROR, "Couldn't read chunck from specified file %s\n",
-          strerror(errno));
-      send_error(client_fd, "Internal Server ERROR");
-      fclose(file);
-      return;
-    }
-    dprintf(*client_fd, "%s", chunck);
-    if (read_len < chunck_len) {
-      break;
-    }
-  }
-  fclose(file);
 }
 
 Route *match_route(Router *router, char *path, HttpMethod method) {
-  for (_usize i = 0; i < router->m_RoutesCount; ++i) {
+  for (usize i = 0; i < router->m_RoutesCount; ++i) {
     Route *r = &router->m_Routes[i];
     if (strcmp(path, r->m_Path) == 0 && method == r->m_Method) {
       return r;
@@ -222,7 +190,7 @@ HttpMethod fextract_request_method(FILE **client_fp) {
 char *fchop_while(FILE **fp, char stop_char) {
   int c;
   char *buf = NULL;
-  _usize buf_len = 0;
+  usize buf_len = 0;
   FILE *buf_stream = open_memstream(&buf, &buf_len);
   while ((c = fgetc(*fp)) != EOF) {
     if (c == stop_char)
@@ -233,27 +201,17 @@ char *fchop_while(FILE **fp, char stop_char) {
   return buf;
 }
 
-void send_ok(int *client_fd, Response res) {
-  char *page_title = "Well Done";
-  _usize page_title_len = strlen(page_title);
-  _usize body_len = strlen(HTTP_BODY_TEMPLATE);
-  _usize message_len = strlen(res.payload.m_String);
-  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, 200,
-          body_len + message_len + page_title_len);
-  dprintf(*client_fd, HTTP_BODY_TEMPLATE, page_title, res.payload.m_String);
-}
-
 void send_error(int *client_fd, char *error_msg) {
   char *page_title = "Something went wrong";
-  _usize page_title_len = strlen(page_title);
-  _usize body_len = strlen(HTTP_BODY_TEMPLATE);
-  _usize error_msg_len = strlen(error_msg);
-  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, 400,
+  usize page_title_len = strlen(page_title);
+  usize body_len = strlen(HTTP_BODY_TEMPLATE);
+  usize error_msg_len = strlen(error_msg);
+  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, 400, "text/html",
           body_len + error_msg_len + page_title_len);
   dprintf(*client_fd, HTTP_BODY_TEMPLATE, page_title, error_msg);
 }
 
-int init_tcp_socket(char *Host, _usize Port, _usize BackLog) {
+int init_tcp_socket(char *Host, usize Port, usize BackLog) {
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd == -1) {
     Log(stderr, ERROR, "Couldn't create server: %s\n", strerror(errno));
@@ -281,10 +239,63 @@ int init_tcp_socket(char *Host, _usize Port, _usize BackLog) {
 }
 
 char *join_strings(char *lhs, char *rhs) {
-  _usize lhs_len = strlen(lhs);
-  _usize rhs_len = strlen(rhs);
+  usize lhs_len = strlen(lhs);
+  usize rhs_len = strlen(rhs);
   char *buf = malloc(sizeof(char) * (lhs_len + rhs_len + 1));
   strncpy(buf, lhs, lhs_len);
   strncpy(buf + lhs_len, rhs, rhs_len);
   return buf;
+}
+
+void handle_response_with_str(int *client_fd, Response res) {
+  char *page_title = "Well Done";
+  usize page_title_len = strlen(page_title);
+  usize body_len = strlen(HTTP_BODY_TEMPLATE);
+  usize message_len = strlen(res.payload.m_String);
+  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, res.m_Status, "text/html",
+          body_len + message_len + page_title_len);
+  dprintf(*client_fd, HTTP_BODY_TEMPLATE, page_title, res.payload.m_String);
+}
+
+void handle_response_with_json(int *client_fd, Response res) {
+  char *json_string = Json_Stringfy(res.payload.m_Json, 2);
+  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, res.m_Status, "Application/json",
+          sizeof(char) * strlen(json_string));
+  dprintf(*client_fd, "%s", json_string);
+}
+
+void handle_response_with_html_file(int *client_fd, Response res) {
+  FILE *file =
+      fopen(join_strings(STATIC_FOLDER_PATH, res.payload.m_FilePath), "r");
+  if (!file) {
+    Log(stderr, ERROR, "Couldn't respond with file %s: %s",
+        res.payload.m_FilePath, strerror(errno));
+    send_error(client_fd, "Internal Server ERROR");
+    return;
+  }
+  fseek(file, 0, SEEK_END);
+  usize file_len = ftell(file);
+  fseek(file, 0, SEEK_SET);
+  dprintf(*client_fd, HTTP_HEADER_TEMPLATE, 200, "text/html", file_len);
+
+  // read and write in chuncks
+  usize chunck_len = 512;
+  char chunck[chunck_len];
+  usize read_len = 0;
+
+  while (1) {
+    read_len = fread(chunck, sizeof(char), chunck_len, file);
+    if (read_len < 0) {
+      Log(stderr, ERROR, "Couldn't read chunck from specified file %s\n",
+          strerror(errno));
+      send_error(client_fd, "Internal Server ERROR");
+      fclose(file);
+      return;
+    }
+    dprintf(*client_fd, "%s", chunck);
+    if (read_len < chunck_len) {
+      break;
+    }
+  }
+  fclose(file);
 }
