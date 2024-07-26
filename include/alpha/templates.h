@@ -7,7 +7,7 @@
   "Content-Length: %lu\r\n"                                                    \
   "\r\n"
 
-#define HTTP_BODY_TEMPLATE                                                     \
+#define HTML_TEMPLATE                                                          \
   "<!Doctype html5>"                                                           \
   "<html>"                                                                     \
   "<head>"                                                                     \
