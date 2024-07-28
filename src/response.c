@@ -2,19 +2,22 @@
 #include <errno.h>
 #include <stdio.h>
 
-// Note: JACK_IMPLEMENTATION cannot be defined in other place
 #define JACK_IMPLEMENTATION
 #include "../exteral/jack/include/jack.h"
-
-// LOG4C_IMPLEMENTATION already defined at 'alpha.c'
 #include "../exteral/log4c/include/log4c.h"
 
 #include "../include/alpha.h"
 #include "../include/alpha/response.h"
 #include "../include/alpha/templates.h"
 
-// Implemented at 'request.c' file
-char *join_strings(char *lhs, char *rhs);
+char *join_strings(char *lhs, char *rhs) {
+  usize lhs_len = strlen(lhs);
+  usize rhs_len = strlen(rhs);
+  char *buf = malloc(sizeof(char) * (lhs_len + rhs_len + 1));
+  strncpy(buf, lhs, lhs_len);
+  strncpy(buf + lhs_len, rhs, rhs_len);
+  return buf;
+}
 
 void response_handler(int *client_fd, Response response) {
   switch (response.type) {

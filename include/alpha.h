@@ -5,7 +5,7 @@
 #include "alpha/router.h"
 
 #define BACK_LOG 5120
-#ifndef STATIC_FOLDER_PATH
+#if !defined(STATIC_FOLDER_PATH)
 #define STATIC_FOLDER_PATH "static/"
 #endif
 

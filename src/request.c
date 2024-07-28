@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-// LOG4C_IMPLEMENTATION already defined at 'alpha.c'
 #include "../exteral/log4c/include/log4c.h"
 
 #include "../include/alpha/request.h"
@@ -17,7 +16,6 @@
 
 // Helpers
 char *fread_line(FILE *fp);
-char *join_strings(char *lhs, char *rhs);
 char *fchop_while(FILE *fp, char stop_char);
 HttpMethod fextract_request_method(FILE *fp);
 
@@ -86,15 +84,6 @@ void handle_request_get(RequestDTO *payload, FILE *client_fp, char *path) {
     response_handler(&payload->client.file_descriptor, response);
     Log(stdout, INFO, "GET %s %s", path, STATUS_CODE(response.statusCode));
   }
-}
-
-char *join_strings(char *lhs, char *rhs) {
-  usize lhs_len = strlen(lhs);
-  usize rhs_len = strlen(rhs);
-  char *buf = malloc(sizeof(char) * (lhs_len + rhs_len + 1));
-  strncpy(buf, lhs, lhs_len);
-  strncpy(buf + lhs_len, rhs, rhs_len);
-  return buf;
 }
 
 HttpMethod fextract_request_method(FILE *client_fp) {

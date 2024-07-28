@@ -7,4 +7,3 @@ project(
 
 file(GLOB Alpha_Sources "src/*.c")
 add_library(alpha STATIC ${Alpha_Sources})
-target_link_libraries(alpha cthings)

@@ -10,13 +10,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define LOG4C_IMPLEMENTATION
+#include "../exteral/log4c/include/log4c.h"
+
 #include "../include/alpha.h"
 #include "../include/alpha/request.h"
 #include "../include/alpha/request_dto.h"
-
-// Note: LOG4C_IMPLEMENTATION cannot be defined in other place
-#define LOG4C_IMPLEMENTATION
-#include "../exteral/log4c/include/log4c.h"
 
 int init_tcp_socket(char *Host, usize Port);
 
@@ -28,6 +27,7 @@ Router Alpha_Router_New() {
 }
 
 AlphaApp Alpha_New(char *Host, usize Port) {
+  // TODO: validate args
   AlphaApp app;
   app._router = Alpha_Router_New();
   app._backLog = BACK_LOG;
@@ -37,6 +37,7 @@ AlphaApp Alpha_New(char *Host, usize Port) {
 }
 
 void Alpha_Get(AlphaApp *app, char *path, AlphaRouteHandler handler) {
+  // TODO: validate args
   Route route = {
       ._handler = handler,
       ._method = GET,
@@ -45,19 +46,16 @@ void Alpha_Get(AlphaApp *app, char *path, AlphaRouteHandler handler) {
   app->_router._routes[app->_router._routesCount++] = route;
 }
 
-void Alpha_Run(AlphaApp *app) {
-  pthread_t threads[app->_backLog];
-  unsigned int threads_count = 0;
+// printf("%s %d\n",
+// inet_ntoa(client_addr.sin_addr),ntohs(client_addr.sin_port));
 
+void Alpha_Run(AlphaApp *app) {
   while (1) {
     struct sockaddr_in client_addr;
     usize client_addr_len = sizeof(client_addr);
     const int client_fd =
         accept(app->_fileDescriptor, (struct sockaddr *)&client_addr,
                (socklen_t *)&client_addr_len);
-
-    // printf("%s %d\n",
-    // inet_ntoa(client_addr.sin_addr),ntohs(client_addr.sin_port));
 
     if (client_fd == -1) {
       Log(stderr, ERROR, "Couldn't Accept conn: %s\n", strerror(errno));
@@ -71,11 +69,6 @@ void Alpha_Run(AlphaApp *app) {
 
     pthread_t thread;
     pthread_create(&thread, NULL, RequestHandler, payload);
-    threads[threads_count++] = thread;
-  }
-
-  for (unsigned int i = 0; i < threads_count; ++i) {
-    pthread_join(threads[i], NULL);
   }
 }
 
